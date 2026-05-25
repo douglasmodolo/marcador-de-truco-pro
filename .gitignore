@@ -141,3 +141,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Expo
+.expo/
+expo-env.d.ts
+android/
+ios/
+web-build/
+
+# EAS
+eas-build-pre-install.sh
