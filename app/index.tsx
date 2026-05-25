@@ -25,6 +25,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useKeepAwake } from 'expo-keep-awake';
+import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 
 import { useJogo } from '@/hooks/useJogo';
 import type { HistoricoEntry } from '@/context/JogoContext';
@@ -53,6 +55,7 @@ export default function Index() {
   useKeepAwake();
 
   const insets = useSafeAreaInsets();
+  const router  = useRouter();
 
   const {
     state,
@@ -74,6 +77,7 @@ export default function Index() {
   );
   const [novaPartidaModal, setNovaPartidaModal] = useState(false);
   const [historicoModal, setHistoricoModal] = useState(false);
+  const [menuVisivel, setMenuVisivel]       = useState(false);
   // Overlay de vitória: modal de confirmação de nomes + info capturada ao fim
   const [vitoriaNomesModal, setVitoriaNomesModal] = useState(false);
   const [vitoriaInfo, setVitoriaInfo] = useState<{ nome: string; placar: string } | null>(null);
@@ -161,6 +165,50 @@ export default function Index() {
     setNovaPartidaModal(true);
   }
 
+  // ── Itens do menu sanduíche ─────────────────────────────────────────────
+  // Definidos aqui para ter acesso a router/setMenuVisivel/Linking.
+  const menuItens: Array<{
+    emoji: string;
+    label: string;
+    premium?: boolean;
+    onPress: () => void;
+  }> = [
+    {
+      emoji: '🎲',
+      label: 'Sorteio de duplas',
+      onPress: () => { setMenuVisivel(false); router.push('/sorter'); },
+    },
+    {
+      emoji: '🪙',
+      label: 'Cara ou coroa',
+      onPress: () => { setMenuVisivel(false); router.push('/coin'); },
+    },
+    {
+      emoji: '📜',
+      label: 'Regras do truco',
+      onPress: () => { setMenuVisivel(false); router.push('/regras'); },
+    },
+    {
+      emoji: '🛒',
+      label: 'Comprar baralhos',
+      onPress: () => {
+        setMenuVisivel(false);
+        Linking.openURL('https://lista.mercadolivre.com.br/baralho');
+      },
+    },
+    {
+      emoji: '⚙️',
+      label: 'Configurações',
+      onPress: () => setMenuVisivel(false), // placeholder — Issue futura
+    },
+    {
+      emoji: '⭐',
+      label: 'Seja Premium',
+      premium: true,
+      onPress: () => { setMenuVisivel(false); router.push('/premium'); },
+    },
+  ];
+
   return (
     <View style={styles.root}>
       {/* backgroundColor sólido como fallback: se o LinearGradient demorar
@@ -184,7 +232,10 @@ export default function Index() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Abrir menu"
-            onPress={() => Alert.alert('Menu', 'Em construção — Issue #5 / SideMenu.tsx')}
+            onPress={() => {
+              setMenuVisivel(true);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
             style={({ pressed }) => [styles.headerBtn, { opacity: pressed ? 0.6 : 1 }]}
           >
             <Ionicons name="menu" size={28} color="#FFFFFF" />
@@ -529,6 +580,48 @@ export default function Index() {
 
           </View>
         </View>
+      </Modal>
+
+      {/* ── MODAL — Menu sanduíche ─────────────────────────────────────────── */}
+      {/* animationType="slide" desliza o card de baixo para cima.
+          Pressable externo (fundo escuro) fecha ao toque fora do card.
+          Pressable interno (card) absorve os toques e impede propagação. */}
+      <Modal
+        visible={menuVisivel}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setMenuVisivel(false)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuVisivel(false)}>
+          <Pressable
+            style={[styles.menuCard, { paddingBottom: insets.bottom + 16 }]}
+            onPress={() => {}} // absorve toque — impede fechar ao clicar dentro do card
+          >
+            {/* Alça decorativa */}
+            <View style={styles.menuAlca} />
+
+            {menuItens.map((item, idx) => (
+              <View key={item.label}>
+                {idx > 0 && <View style={styles.menuDivider} />}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                  onPress={item.onPress}
+                  style={styles.menuItem}
+                >
+                  <Text style={styles.menuEmoji}>{item.emoji}</Text>
+                  <Text style={[
+                    styles.menuLabel,
+                    item.premium ? styles.menuLabelPremium : undefined,
+                  ]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ── OVERLAY — Fim de jogo ──────────────────────────────────────────── */}
@@ -934,6 +1027,51 @@ const styles = StyleSheet.create({
     fontFamily: 'BebasNeue',
     fontSize: 18,
     color: '#FFD700',
+  },
+
+  // ── Menu sanduíche ───────────────────────────────────────────────────────
+  menuOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  menuCard: {
+    backgroundColor: '#1B4332',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+  },
+  menuAlca: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+  },
+  menuEmoji: {
+    fontSize: 22,
+    marginRight: 16,
+  },
+  menuLabel: {
+    fontFamily: 'BebasNeue',
+    fontSize: 20,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  menuLabelPremium: {
+    color: '#FFD700',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 24,
   },
 
   // ── Overlay de vitória ────────────────────────────────────────────────────
