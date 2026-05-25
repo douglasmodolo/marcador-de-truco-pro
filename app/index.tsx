@@ -15,13 +15,20 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOutUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useJogo } from '@/hooks/useJogo';
 import type { HistoricoEntry } from '@/context/JogoContext';
 
 // ─── Marcador de Pontos ─────────────────────────────────────────────────────
 // Issues pendentes (próximas branches):
-//   #10 HistoryHUD — painel glassmorphism + log de quedas
 //   #12 WinnerOverlay — fim de jogo
 //   #13 Keep Awake na tela do marcador
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +69,19 @@ export default function Index() {
   const [novaPartidaModal, setNovaPartidaModal] = useState(false);
   const [historicoModal, setHistoricoModal] = useState(false);
 
+  // ── Animação — CORRER fade in/out ────────────────────────────────────────
+  // Inicia em 0 (valorTruco === 1 é o estado padrão).
+  // Anima suavemente para 1 ao primeiro TRUCO e de volta para 0 ao CORRER/queda.
+  const correrOpacity = useSharedValue(0);
+  const animStyleCorrer = useAnimatedStyle(() => ({
+    opacity: correrOpacity.value,
+  }));
+
+  useEffect(() => {
+    correrOpacity.value = withTiming(state.valorTruco === 1 ? 0 : 1, { duration: 200 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.valorTruco]);
+
   // ── Dialog "Continuar partida?" ─────────────────────────────────────────
   // Exibido uma única vez ao montar, se houver partida salva com progresso.
   useEffect(() => {
@@ -78,17 +98,11 @@ export default function Index() {
   }, []); // intencional: executa apenas no mount; referências são estáveis
 
   // ── Label dinâmica do botão TRUCO ───────────────────────────────────────
-  // Exibe o próximo passo do ciclo que será acionado ao tocar:
-  //   valorTruco=1  → "TRUCO"  (vai pedir truco, próximo valor será 3)
-  //   valorTruco=3  → "SEIS"   (vai pedir seis,  próximo valor será 6)
-  //   valorTruco=6  → "NOVE"   (vai pedir nove,  próximo valor será 9)
-  //   valorTruco=9  → "DOZE"   (vai pedir doze,  próximo valor será 12)
-  //   valorTruco=12 → "TRUCO"  (ciclo completo, volta para 1 ao registrar queda)
   const trucoLabel =
     state.valorTruco === 3  ? 'SEIS'  :
     state.valorTruco === 6  ? 'NOVE'  :
     state.valorTruco === 9  ? 'DOZE'  :
-    'TRUCO'; // valorTruco === 1 ou 12
+    'TRUCO';
 
   // ── Handlers do modal de renomear ───────────────────────────────────────
   function abrirRenomear(time: 'time1' | 'time2') {
@@ -140,7 +154,6 @@ export default function Index() {
 
         {/* ── HEADER ───────────────────────────────────────────────────── */}
         <View style={styles.header}>
-          {/* Botão ☰ — menu sanduíche (esquerda) */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Abrir menu"
@@ -150,7 +163,6 @@ export default function Index() {
             <Ionicons name="menu" size={28} color="#FFFFFF" />
           </Pressable>
 
-          {/* Botão ↺ — nova partida (direita) */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Nova partida"
@@ -167,7 +179,6 @@ export default function Index() {
           {/* Metade esquerda — Time 1 */}
           <View style={styles.scoreHalf}>
 
-            {/* Toque longo no nome abre modal de renomear */}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Toque longo para renomear o time 1"
@@ -177,15 +188,19 @@ export default function Index() {
               <Text style={styles.teamName}>{state.time1.nome}</Text>
             </Pressable>
 
-            <View style={styles.scoreNumberWrap}>
-              {/* Dourado quando mão de 11 (11 pontos), branco nos demais */}
+            {/* key muda a cada ponto → React remonta → FadeIn dispara */}
+            <Animated.View
+              key={state.time1.pontos}
+              entering={FadeIn.duration(400)}
+              style={styles.scoreNumberWrap}
+            >
               <Text style={[
                 styles.scoreText,
                 { color: maoDeOnze.time1 ? '#FFD700' : '#FFFFFF' },
               ]}>
                 {state.time1.pontos}
               </Text>
-            </View>
+            </Animated.View>
 
             <TouchableOpacity
               activeOpacity={0.7}
@@ -221,7 +236,6 @@ export default function Index() {
           {/* Metade direita — Time 2 */}
           <View style={styles.scoreHalf}>
 
-            {/* Toque longo no nome abre modal de renomear */}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Toque longo para renomear o time 2"
@@ -231,14 +245,19 @@ export default function Index() {
               <Text style={styles.teamName}>{state.time2.nome}</Text>
             </Pressable>
 
-            <View style={styles.scoreNumberWrap}>
+            {/* key muda a cada ponto → React remonta → FadeIn dispara */}
+            <Animated.View
+              key={state.time2.pontos}
+              entering={FadeIn.duration(400)}
+              style={styles.scoreNumberWrap}
+            >
               <Text style={[
                 styles.scoreText,
                 { color: maoDeOnze.time2 ? '#FFD700' : '#FFFFFF' },
               ]}>
                 {state.time2.pontos}
               </Text>
-            </View>
+            </Animated.View>
 
             <TouchableOpacity
               activeOpacity={0.7}
@@ -273,7 +292,7 @@ export default function Index() {
         {/* ── ZONA DO HUD ───────────────────────────────────────────────── */}
         <View style={styles.hud}>
 
-          {/* Botão TRUCO — avança o ciclo: TRUCO → SEIS → NOVE → DOZE → TRUCO */}
+          {/* Botão TRUCO */}
           <TouchableOpacity
             activeOpacity={0.7}
             accessibilityRole="button"
@@ -287,25 +306,25 @@ export default function Index() {
             <Text style={styles.trucoBtnText}>{trucoLabel}</Text>
           </TouchableOpacity>
 
-          {/* Botão CORRER — reserva espaço fixo; opacity:0 + disabled quando valorTruco===1
-               Usar disabled/opacity em vez de renderização condicional evita que o
-               layout "pule" quando o botão aparece/desaparece. */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Correr — cancelar truco"
-            disabled={state.valorTruco === 1}
-            onPress={() => {
-              voltarTruco();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            }}
-            style={[
-              styles.correrBtn,
-              { opacity: state.valorTruco === 1 ? 0 : 1 },
-            ]}
-          >
-            <Text style={styles.correrBtnText}>CORRER</Text>
-          </TouchableOpacity>
+          {/* Botão CORRER — Animated.View controla opacity com withTiming;
+               disabled bloqueia toque enquanto invisível.
+               O wrapper reserva espaço fixo (width + marginTop) para não
+               deslocar o layout ao aparecer/desaparecer. */}
+          <Animated.View style={[styles.correrBtnWrapper, animStyleCorrer]}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Correr — cancelar truco"
+              disabled={state.valorTruco === 1}
+              onPress={() => {
+                voltarTruco();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              style={styles.correrBtn}
+            >
+              <Text style={styles.correrBtnText}>CORRER</Text>
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* ── Histórico — últimas 2 entradas; toque abre modal completo ── */}
           <TouchableOpacity
@@ -318,16 +337,23 @@ export default function Index() {
             {state.historico.length === 0 ? (
               <Text style={styles.historyEmpty}>Histórico aparece aqui</Text>
             ) : (
-              state.historico.slice(-2).map((entrada, idx) => (
-                <Text
-                  key={entrada.timestamp + idx}
-                  style={[
-                    styles.historyEntry,
-                    entrada.tipo === 'correcao' && styles.historyEntryCorrecao,
-                  ]}
+              state.historico.slice(-2).map((entrada) => (
+                // key = timestamp único: React re-monta entradas novas (entering)
+                // e desmonta as que saem do slice(-2) (exiting).
+                <Animated.View
+                  key={entrada.timestamp}
+                  entering={FadeInDown.duration(300)}
+                  exiting={FadeOutUp.duration(200)}
                 >
-                  {formatarEntrada(entrada)}
-                </Text>
+                  <Text
+                    style={[
+                      styles.historyEntry,
+                      entrada.tipo === 'correcao' && styles.historyEntryCorrecao,
+                    ]}
+                  >
+                    {formatarEntrada(entrada)}
+                  </Text>
+                </Animated.View>
               ))
             )}
           </TouchableOpacity>
@@ -336,11 +362,7 @@ export default function Index() {
 
       </SafeAreaView>
 
-      {/* ── RODAPÉ — reserva para banner AdMob (Issue #16) ────────────────
-          position: 'absolute' → sempre colado na base da tela.
-          height = 60px (banner) + insets.bottom (navigation bar Android).
-          paddingBottom → justifyContent:'center' centraliza nos 60px de conteúdo.
-          ────────────────────────────────────────────────────────────────── */}
+      {/* ── RODAPÉ — reserva para banner AdMob ───────────────────────────── */}
       <View style={[styles.footer, {
         height: 60 + insets.bottom,
         paddingBottom: insets.bottom,
@@ -455,7 +477,7 @@ export default function Index() {
                 </Text>
               ) : (
                 state.historico.map((entrada, idx) => (
-                  <View key={entrada.timestamp + idx}>
+                  <View key={entrada.timestamp}>
                     {idx > 0 && <View style={styles.historicoDivider} />}
                     <Text
                       style={[
@@ -601,8 +623,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  correrBtn: {
+  // Wrapper animado do botão CORRER — carrega layout (width/marginTop).
+  // A Animated.View envolve o TouchableOpacity para que withTiming
+  // anime a opacity sem interferir no toque gerenciado por disabled.
+  correrBtnWrapper: {
+    alignSelf: 'center',
     width: '60%',
+    marginTop: 8,
+  },
+  correrBtn: {
+    width: '100%',
     backgroundColor: 'rgba(255,0,0,0.15)',
     borderWidth: 1,
     borderColor: 'rgba(255,0,0,0.5)',
@@ -610,7 +640,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
   },
   correrBtnText: {
     fontFamily: 'BebasNeue',
@@ -623,7 +652,7 @@ const styles = StyleSheet.create({
   historyHud: {
     marginTop: 10,
     alignItems: 'center',
-    minHeight: 36, // reserva espaço mesmo quando vazio
+    minHeight: 36,
     paddingHorizontal: 16,
   },
   historyEmpty: {
@@ -639,47 +668,6 @@ const styles = StyleSheet.create({
   },
   historyEntryCorrecao: {
     color: 'rgba(255,120,120,0.8)',
-  },
-
-  // ── Modal histórico completo ─────────────────────────────────────────────
-  historicoCard: {
-    maxHeight: '75%', // limita altura para não cobrir a tela toda
-  },
-  historicoScroll: {
-    marginBottom: 16,
-  },
-  historicoVazio: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingVertical: 16,
-  },
-  historicoEntrada: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    paddingVertical: 8,
-  },
-  historicoEntradaCorrecao: {
-    color: 'rgba(255,120,120,0.8)',
-  },
-  historicoDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  historicoFecharBtn: {
-    alignSelf: 'center',
-    width: '60%',
-    backgroundColor: 'rgba(255,215,0,0.15)',
-    borderWidth: 1,
-    borderColor: '#FFD700',
-    borderRadius: 24,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  historicoFecharBtnText: {
-    fontFamily: 'BebasNeue',
-    fontSize: 18,
-    color: '#FFD700',
   },
 
   // ── Rodapé (Banner Ad) ──────────────────────────────────
@@ -698,7 +686,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // ── Modal de renomear ───────────────────────────────────
+  // ── Modais — estilos compartilhados ────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
@@ -719,7 +707,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 8,
   },
-  // Subtítulo/corpo usado no modal de confirmação (sem TextInput)
   modalBody: {
     fontSize: 15,
     color: 'rgba(255,255,255,0.65)',
@@ -758,6 +745,47 @@ const styles = StyleSheet.create({
     borderColor: '#FFD700',
   },
   modalBtnConfirmText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 18,
+    color: '#FFD700',
+  },
+
+  // ── Modal histórico completo ─────────────────────────────────────────────
+  historicoCard: {
+    maxHeight: '75%',
+  },
+  historicoScroll: {
+    marginBottom: 16,
+  },
+  historicoVazio: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  historicoEntrada: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+  historicoEntradaCorrecao: {
+    color: 'rgba(255,120,120,0.8)',
+  },
+  historicoDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  historicoFecharBtn: {
+    alignSelf: 'center',
+    width: '60%',
+    backgroundColor: 'rgba(255,215,0,0.15)',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  historicoFecharBtnText: {
     fontFamily: 'BebasNeue',
     fontSize: 18,
     color: '#FFD700',
