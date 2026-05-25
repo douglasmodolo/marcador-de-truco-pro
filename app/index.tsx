@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -28,6 +29,7 @@ import Animated, {
 import { useKeepAwake } from 'expo-keep-awake';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
+import { captureRef } from 'react-native-view-shot';
 
 import { useJogo } from '@/hooks/useJogo';
 import { useConfig } from '@/hooks/useConfig';
@@ -98,7 +100,30 @@ export default function Index() {
   const [configModal, setConfigModal]           = useState(false);
   // Overlay de vitória: modal de confirmação de nomes + info capturada ao fim
   const [vitoriaNomesModal, setVitoriaNomesModal] = useState(false);
-  const [vitoriaInfo, setVitoriaInfo] = useState<{ nome: string; placar: string } | null>(null);
+  const [vitoriaInfo, setVitoriaInfo] = useState<{
+    nome: string;
+    nomePerdedor: string;
+    placar: string;
+  } | null>(null);
+
+  // ── Ref para captura do cartão de compartilhamento ──────────────────────
+  const cartaoRef = useRef<View>(null);
+
+  async function compartilhar() {
+    try {
+      const uri = await captureRef(cartaoRef, { format: 'png', quality: 1 });
+      await Share.share(
+        {
+          // Android usa message; iOS usa url (a imagem) + message (texto opcional)
+          message: `🏆 ${vitoriaInfo?.nome ?? ''} venceu! Placar: ${vitoriaInfo?.placar ?? ''}\nBaixe o Marcador de Truco Pro: play.google.com/store/apps/details?id=com.seuapp`,
+          url: uri,
+        },
+        { dialogTitle: 'Compartilhar resultado' },
+      );
+    } catch (error) {
+      console.error('Erro ao compartilhar:', error);
+    }
+  }
 
   // ── Animação — CORRER fade in/out ────────────────────────────────────────
   // Inicia em 0 (valorTruco === 1 é o estado padrão).
@@ -119,9 +144,11 @@ export default function Index() {
   // zerados durante o fade-out quando novaPartida() resetar o state.
   useEffect(() => {
     if (!state.fimDeJogo || !state.vencedor) return;
+    const perdedor = state.vencedor === 'time1' ? 'time2' : 'time1';
     setVitoriaInfo({
-      nome:   state[state.vencedor].nome,
-      placar: `${state.time1.pontos} × ${state.time2.pontos}`,
+      nome:         state[state.vencedor].nome,
+      nomePerdedor: state[perdedor].nome,
+      placar:       `${state.time1.pontos} × ${state.time2.pontos}`,
     });
     haptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -767,9 +794,43 @@ export default function Index() {
                 >
                   <Text style={styles.vitoriaBtnManterTimesText}>MANTER TIMES E JOGAR</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Compartilhar resultado"
+                  onPress={compartilhar}
+                  style={styles.vitoriaBtnCompartilhar}
+                >
+                  <Ionicons name="share-social" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.vitoriaBtnCompartilharText}>COMPARTILHAR</Text>
+                </TouchableOpacity>
               </Animated.View>
 
             </SafeAreaView>
+          </LinearGradient>
+        </View>
+
+        {/* ── Cartão oculto para captura — posicionado fora da área visível ── */}
+        {/* Permanece montado enquanto o Modal está visível (state.fimDeJogo)   */}
+        {/* para que captureRef() encontre o layout já calculado.              */}
+        <View ref={cartaoRef} style={styles.cartao} collapsable={false}>
+          <LinearGradient
+            colors={['#2D6A4F', '#1B4332']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.cartaoGradiente}
+          >
+            <Text style={styles.cartaoTrofeu}>🏆</Text>
+            <View style={styles.cartaoSeparador} />
+            <Text style={styles.cartaoVencedorLabel}>VENCEDOR</Text>
+            <Text style={styles.cartaoVencedorNome} numberOfLines={2} adjustsFontSizeToFit>
+              {vitoriaInfo?.nome ?? ''}
+            </Text>
+            <Text style={styles.cartaoPlacar}>{vitoriaInfo?.placar ?? ''}</Text>
+            <View style={styles.cartaoPerdedorRow}>
+              <Text style={styles.cartaoPato}>🦆</Text>
+              <Text style={styles.cartaoPerdedorNome}>{vitoriaInfo?.nomePerdedor ?? ''}</Text>
+            </View>
           </LinearGradient>
         </View>
 
@@ -1243,6 +1304,87 @@ const styles = StyleSheet.create({
     fontFamily: 'BebasNeue',
     fontSize: 16,
     color: 'rgba(255,255,255,0.4)',
+  },
+
+  // ── Botão compartilhar (vitória) ─────────────────────────────────────────
+  vitoriaBtnCompartilhar: {
+    width: '80%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 16,
+    paddingVertical: 14,
+  },
+  vitoriaBtnCompartilharText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 20,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+
+  // ── Cartão de compartilhamento (oculto, capturado via react-native-view-shot) ──
+  cartao: {
+    position: 'absolute',
+    left: -9999,
+    top: 0,
+    width: 400,
+    height: 400,
+  },
+  cartaoGradiente: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 8,
+  },
+  cartaoTrofeu: {
+    fontSize: 64,
+    textAlign: 'center',
+  },
+  cartaoSeparador: {
+    width: 60,
+    height: 2,
+    backgroundColor: '#FFD700',
+    marginVertical: 8,
+  },
+  cartaoVencedorLabel: {
+    fontFamily: 'BebasNeue',
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 3,
+    textAlign: 'center',
+  },
+  cartaoVencedorNome: {
+    fontFamily: 'BebasNeue',
+    fontSize: 56,
+    color: '#FFD700',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  cartaoPlacar: {
+    fontFamily: 'BebasNeue',
+    fontSize: 28,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+  },
+  cartaoPerdedorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  cartaoPato: {
+    fontSize: 32,
+  },
+  cartaoPerdedorNome: {
+    fontFamily: 'BebasNeue',
+    fontSize: 28,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 1,
   },
 
   // ── Modal de configurações ───────────────────────────────────────────────
