@@ -184,11 +184,6 @@ export default function Index() {
       onPress: () => { setMenuVisivel(false); router.push('/coin'); },
     },
     {
-      emoji: '📜',
-      label: 'Regras do truco',
-      onPress: () => { setMenuVisivel(false); router.push('/regras'); },
-    },
-    {
       emoji: '🛒',
       label: 'Comprar baralhos',
       onPress: () => {
