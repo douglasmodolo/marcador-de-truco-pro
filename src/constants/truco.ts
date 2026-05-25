@@ -21,3 +21,13 @@ export function getNextTrucoValue(current: TrucoValue): TrucoValue {
   const idx = TRUCO_VALUES.indexOf(current);
   return TRUCO_VALUES[(idx + 1) % TRUCO_VALUES.length];
 }
+
+/**
+ * Retorna o valor anterior no ciclo do truco (usado pelo botão CORRER).
+ * Ex: getPrevTrucoValue(6) → 3, getPrevTrucoValue(3) → 1, getPrevTrucoValue(1) → 1 (no-op)
+ */
+export function getPrevTrucoValue(current: TrucoValue): TrucoValue {
+  if (current === 1) return 1;
+  const idx = TRUCO_VALUES.indexOf(current);
+  return TRUCO_VALUES[(idx - 1 + TRUCO_VALUES.length) % TRUCO_VALUES.length];
+}

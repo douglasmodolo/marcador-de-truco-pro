@@ -16,7 +16,7 @@ import React, {
   useState,
 } from 'react';
 
-import { getNextTrucoValue, PONTOS_VITORIA } from '@/constants/truco';
+import { getNextTrucoValue, getPrevTrucoValue, PONTOS_VITORIA } from '@/constants/truco';
 import type { TrucoValue } from '@/constants/truco';
 import { storage } from '@/lib/storage';
 
@@ -56,6 +56,8 @@ export interface JogoContextValue {
   removerPonto: (time: 'time1' | 'time2') => void;
   /** Avança o ciclo do botão TRUCO!: 1→3→6→9→12→1. */
   avancarTruco: () => void;
+  /** Recua um passo no ciclo (botão CORRER): 12→9→6→3→1; no-op se já for 1. */
+  voltarTruco: () => void;
   /** Atualiza o nome do time e persiste em MMKV. */
   renomearTime: (time: 'time1' | 'time2', nome: string) => void;
   /** Reseta pontos, histórico, truco e fimDeJogo — mantém nomes dos times. */
@@ -79,6 +81,7 @@ type Action =
   | { type: 'ADICIONAR_PONTO'; time: 'time1' | 'time2' }
   | { type: 'REMOVER_PONTO';   time: 'time1' | 'time2' }
   | { type: 'AVANCAR_TRUCO' }
+  | { type: 'VOLTAR_TRUCO' }
   | { type: 'RENOMEAR_TIME';   time: 'time1' | 'time2'; nome: string }
   | { type: 'NOVA_PARTIDA' }
   | { type: 'CARREGAR_ESTADO'; estado: JogoState };
@@ -91,7 +94,8 @@ function reducer(state: JogoState, action: Action): JogoState {
       if (state.fimDeJogo) return state;
 
       const { time } = action;
-      const novos = state[time].pontos + state.valorTruco;
+      // Teto em PONTOS_VITORIA: evita placar > 12 (ex: 9 + truco +9 = 12, não 18)
+      const novos = Math.min(state[time].pontos + state.valorTruco, PONTOS_VITORIA);
 
       const novoTime1 = time === 'time1' ? { ...state.time1, pontos: novos } : state.time1;
       const novoTime2 = time === 'time2' ? { ...state.time2, pontos: novos } : state.time2;
@@ -159,6 +163,11 @@ function reducer(state: JogoState, action: Action): JogoState {
 
     case 'AVANCAR_TRUCO':
       return { ...state, valorTruco: getNextTrucoValue(state.valorTruco) };
+
+    case 'VOLTAR_TRUCO':
+      // No-op se já está em 1 (nenhum truco ativo)
+      if (state.valorTruco === 1) return state;
+      return { ...state, valorTruco: getPrevTrucoValue(state.valorTruco) };
 
     case 'RENOMEAR_TIME': {
       // Fallback para nome padrão se string vazia
@@ -256,6 +265,10 @@ export function JogoProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'AVANCAR_TRUCO' });
   }, []);
 
+  const voltarTruco = useCallback(() => {
+    dispatch({ type: 'VOLTAR_TRUCO' });
+  }, []);
+
   const renomearTime = useCallback(
     (time: 'time1' | 'time2', nome: string) => {
       dispatch({ type: 'RENOMEAR_TIME', time, nome });
@@ -301,6 +314,7 @@ export function JogoProvider({ children }: { children: React.ReactNode }) {
       adicionarPonto,
       removerPonto,
       avancarTruco,
+      voltarTruco,
       renomearTime,
       novaPartida,
       continuarPartida,
@@ -312,6 +326,7 @@ export function JogoProvider({ children }: { children: React.ReactNode }) {
       adicionarPonto,
       removerPonto,
       avancarTruco,
+      voltarTruco,
       renomearTime,
       novaPartida,
       continuarPartida,

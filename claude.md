@@ -30,13 +30,24 @@ e uma ferramenta de zoeira (som de pato). Monetização via Google AdMob (anúnc
 
 ### Mecânica do botão TRUCO!
 
-- O botão exibe o **valor que será somado na próxima queda ganha**, ex: `+3`
-- O label cicla a cada toque: `+3 → +6 → +9 → +12 → +1`
-- Quando o time ganha a queda (tap ou swipe-up na metade do time), o app soma o valor
-  atual exibido no botão ao placar daquele time
+- Estado padrão (`valorTruco = 1`): label **"TRUCO"**
+- Após 1 clique (`valorTruco = 3`): label **"SEIS"**
+- Após 2 cliques (`valorTruco = 6`): label **"NOVE"**
+- Após 3 cliques (`valorTruco = 9`): label **"DOZE"**
+- Após 4 cliques (`valorTruco = 12`): label volta para **"TRUCO"** (ciclo completo)
 - O botão volta para `+1` automaticamente após a queda ser registrada
 - **Não há fluxo de "aceitar/recusar" no app** — os jogadores resolvem isso verbalmente;
   o app só registra quem ganhou e quanto valeu
+
+### Botão CORRER
+
+- **Visível apenas quando `valorTruco > 1`** (truco foi pedido)
+- **Invisível quando `valorTruco = 1`** (rodada normal)
+- Posicionado abaixo do botão TRUCO, centralizado
+- Ao tocar: volta um passo no ciclo do truco — `12→9`, `9→6`, `6→3`, `3→1`
+- Label: **"CORRER"**
+- Estilo: fundo `rgba(255,0,0,0.15)`, borda `rgba(255,0,0,0.5)` 1px, texto vermelho claro, borderRadius 24
+- **Não há mais botão de pato/zoeira** — o CORRER ocupa esse espaço
 
 ---
 
@@ -146,15 +157,17 @@ Fundo: gradiente verde `#2D6A4F` → `#1B4332` (mesa de truco).
   - **Remover Anúncios** → navega para `premium.tsx`
   - **Nova Partida** → reseta o estado (com confirmação)
 
-**2. Botão TRUCO! (centro, eixo horizontal médio)**
-- Label: `TRUCO +3` no estado inicial
-- A cada toque, cicla: `+3 → +6 → +9 → +12 → +1`
-- Após registrar uma queda, reset automático para `+1`
+**2. Botão TRUCO (centro, eixo horizontal médio)**
+- Label dinâmico: `valorTruco=1` → **"TRUCO"** / `3` → **"SEIS"** / `6` → **"NOVE"** / `9` → **"DOZE"**
+- Após registrar uma queda, reset automático para `valorTruco=1` e label **"TRUCO"**
 - Haptic: `ImpactFeedbackStyle.Heavy` ao tocar
 
-**3. Botão Pato / Zoeira (ao lado do TRUCO!)**
-- Ícone de pato 🦆
-- Toque: dispara `quack.mp3` instantaneamente + `ImpactFeedbackStyle.Light`
+**3. Botão CORRER (abaixo do TRUCO)**
+- **Visível apenas quando `valorTruco > 1`**
+- Ao tocar: volta um passo — `12→9→6→3→1`
+- Label: **"CORRER"**
+- Estilo: fundo `rgba(255,0,0,0.15)`, borda `rgba(255,0,0,0.5)` 1px, texto vermelho claro, borderRadius 24
+- Haptic: `ImpactFeedbackStyle.Light`
 
 **4. Histórico Flutuante — HistoryHUD (abaixo do TRUCO! e Pato)**
 - Painel translúcido glassmorphism (blur + opacidade ~70%)
@@ -238,7 +251,7 @@ Acionado quando qualquer time atinge **12 pontos**:
 1. Setar `fimDeJogo: true` no contexto
 2. A tela do marcador se divide em duas animações simultâneas:
    - **Lado vencedor:** animação de confete (usar `react-native-confetti-cannon` ou similar) + nome do time em destaque
-   - **Lado perdedor:** imagem/gif de pato gigante ocupa a metade — cada toque dispara `quack.mp3` + `ImpactFeedbackStyle.Light`
+   - **Lado perdedor:** imagem/gif de pato gigante ocupa a metade — cada toque emite um som de quack
 3. Haptic: `NotificationFeedbackType.Success` (3 pulsos)
 4. Botão **[Nova Partida]**: reseta o estado, mantém nomes dos times
 5. Botão **[Compartilhar resultado]**: gera imagem do placar final e abre share sheet do sistema (`expo-sharing` + `react-native-view-shot` para capturar a tela como imagem)
@@ -346,13 +359,12 @@ Criar estas issues antes de começar, com as labels indicadas:
 | 4 | `feature` | Tela do Marcador — layout base vertical + fundo verde ✅ |
 | 5 | `feature` | JogoContext — estado global e persistência MMKV |
 | 6 | `feature` | Botões +1 e -1 com lógica de pontuação real |
-| 7 | `feature` | Botão TRUCO! — ciclo de valores e haptic |
+| 7 | `feature` | Botão TRUCO (labels dinâmicos) + Botão CORRER |
 | 8 | `feature` | Histórico expansível — últimas 2 entradas + modal completo |
 | 9 | `feature` | Aviso visual mão de 11 (placar dourado) |
 | 10 | `feature` | Nomes persistidos no MMKV + sugestão na próxima partida |
 | 11 | `feature` | Placar animado (flip/bounce ao mudar número) |
-| 12 | `feature` | Botão Pato / Zoeira — som quack + haptic |
-| 13 | `feature` | Keep Awake na tela do marcador |
+| 12 | `feature` | Keep Awake na tela do marcador |
 | 14 | `feature` | Fim de jogo — confete no vencedor + pato no perdedor |
 | 15 | `feature` | Compartilhar resultado como imagem |
 | 16 | `feature` | Menu sanduíche (☰) com Sorteador, Loja, Premium, Nova Partida |
