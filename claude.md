@@ -50,7 +50,7 @@ e uma ferramenta de zoeira (som de pato). Monetização via Google AdMob (anúnc
 | Gestos              | `react-native-gesture-handler` + `react-native-reanimated` |                                        |
 | Áudio               | **`expo-audio`** (NÃO usar expo-av — deprecado)   |                                                 |
 | Feedback Físico     | `expo-haptics`                                    | Ver tipos na seção 6                            |
-| Orientação de Tela  | `expo-screen-orientation`                         | Lock landscape na tela do marcador              |
+| Orientação de Tela  | `expo-screen-orientation`                         | Não é mais necessário lock — tela em retrato padrão |
 | Tela Sempre Ativa   | `expo-keep-awake`                                 | Ativar só na tela do marcador                   |
 | Persistência        | **`react-native-mmkv`**                           | ~30x mais rápido que AsyncStorage; use para tudo|
 | Anúncios            | `react-native-google-mobile-ads` (AdMob)          |                                                 |
@@ -64,9 +64,9 @@ e uma ferramenta de zoeira (som de pato). Monetização via Google AdMob (anúnc
 ```
 app/
   _layout.tsx          # Root layout com providers (JogoContext, RevenueCat init)
-  index.tsx            # Menu Principal
-  sorter.tsx           # Sorteador de Times
-  marcador.tsx         # Marcador de Pontos (landscape exclusivo)
+  index.tsx            # Tela do Marcador (abre direto — é a tela principal)
+  sorter.tsx           # Sorteador de Times (acessível pelo menu sanduíche)
+  premium.tsx          # Tela de compra Premium
 
 src/
   components/
@@ -75,13 +75,13 @@ src/
     ScoreHalf.tsx      # Metade da tela de cada time (gestos + pontuação)
     HistoryHUD.tsx     # Painel flutuante glassmorphism com histórico
     WinnerOverlay.tsx  # Tela de fim de jogo + animação do pato
+    SideMenu.tsx       # Menu sanduíche (drawer ou modal) com Sorteador, Loja, Premium
   context/
     JogoContext.tsx    # Estado global da partida
   hooks/
     useJogo.ts         # Hook principal que consome JogoContext
     usePremium.ts      # Hook que consulta RevenueCat sobre status premium
     useAds.ts          # Hook que gerencia exibição de anúncios
-    useTheme.ts        # Hook de tema: MMKV override + useColorScheme fallback
   sounds/
     quack.mp3          # Som de pato para zoeira
     vitoria.mp3        # Som de fim de jogo (opcional)
@@ -93,77 +93,95 @@ src/
 
 ## 5. Arquitetura de Telas e Fluxo do Usuário
 
-### Tela 1: Menu Principal (Retrato)
-
-Fundo preto puro (`#000000`), tipografia moderna, botões com cantos arredondados:
-
-- **[ Jogar Agora ]** → Navega para `marcador.tsx` com nomes padrão ("Nós" / "Eles")
-- **[ Sorteador de Times ]** → Navega para `sorter.tsx`
-- **[ Loja de Baralhos ]** → Abre link externo via `expo-linking` (Amazon/Mercado Livre afiliado)
-- **[ Remover Anúncios ]** → Inicia fluxo de compra RevenueCat (ver seção 7)
-
-**Usuário Free:** exibe banner AdMob discreto na base da tela.
-**Usuário Premium:** banner oculto.
+**O app abre direto na tela do Marcador (`app/index.tsx`) — não há menu principal.**
+O acesso a funcionalidades secundárias é feito pelo menu sanduíche (☰) no canto superior esquerdo.
 
 ---
 
-### Tela 2: Sorteador de Times (Retrato)
+### Tela Principal: Marcador de Pontos (Retrato — orientação padrão)
 
-- Campo de texto para adicionar nomes à lista de jogadores
-- Lista dos nomes com botão de exclusão por swipe ou ícone de lixeira
-- Seletor: **[Duplas]** ou **[Trios]**
-- Botão **[Sortear]**: embaralha aleatoriamente e exibe os times formados
-- Botão **[Iniciar Jogo com estes Times]**: navega para `marcador.tsx` passando os nomes
-  via parâmetros de rota (`/marcador?time1=Nome&time2=Nome`)
+**Ao entrar:**
+1. Chamar `activateKeepAwakeAsync()` para manter a tela ativa durante a partida
+2. Ao sair: desfazer o keep awake
 
----
-
-### Tela 3: Marcador de Pontos (Paisagem — Lock Obrigatório)
-
-**Ao entrar nesta tela:**
-1. Chamar `ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE)` imediatamente
-2. Chamar `activateKeepAwakeAsync()` para manter a tela ativa
-3. Ao sair da tela: desfazer ambos os locks
-
-**Nomes padrão (fallback):** Se não vier parâmetro de rota, usar `"Nós"` e `"Eles"`.
+**Nomes padrão (fallback):** `"Nós"` e `"Eles"`.
 **Edição de nome:** Toque longo no nome do time abre um modal/input inline para renomear.
+
+#### Layout Visual
+
+```
+┌─────────────────────────────┐
+│ ☰   Nós      |      Eles   │  ← topo: menu + nomes dos times
+│                             │
+│     88       │      88     │  ← meio: placar gigante (Bebas Neue, ~160px)
+│              │             │
+│              │             │
+│  [TRUCO+3]  [🦆]  [hist.]  │  ← HUD flutuante central
+│                             │
+├─────────────────────────────┤
+│          [Banner Ad]        │  ← rodapé fixo (oculto se premium)
+└─────────────────────────────┘
+```
 
 #### A. Divisão de Toque (Background)
 
+A tela é dividida verticalmente ao meio. Cada metade é uma área de toque independente:
+
 | Área | Função |
 |---|---|
-| Metade esquerda (50%) | Time 1: nome no topo, pontuação gigante centralizada, ícone de quedas ganhas |
+| Metade esquerda (50%) | Time 1: nome no topo, pontuação gigante centralizada |
 | Metade direita (50%) | Time 2: espelho exato do Time 1 |
 
-A fonte da pontuação deve ser grande o suficiente para ser lida de longe (mínimo `font-size: 120px` equivalente). Sugestão: **Bebas Neue** ou **Oswald** (bold, condensada, legível).
+A linha divisória central é sutil — apenas uma linha de 1px `rgba(255,255,255,0.15)`.
+
+A fonte da pontuação deve ser grande o suficiente para ser lida de longe — **Bebas Neue 160px**.
+Fundo: gradiente verde `#2D6A4F` → `#1B4332` (mesa de truco).
 
 #### B. HUD — Elementos Flutuantes (sobrepõem o fundo)
 
-**1. Botão TRUCO! (centro superior)**
-- Label: `TRUCO +3` no estado inicial (indicando que o próximo tap vai valer +3)
+**1. Menu Sanduíche ☰ (canto superior esquerdo)**
+- Abre um drawer ou modal com:
+  - **Sorteador de Times** → navega para `sorter.tsx`
+  - **Loja de Baralhos** → abre link externo via `expo-linking`
+  - **Remover Anúncios** → navega para `premium.tsx`
+  - **Nova Partida** → reseta o estado (com confirmação)
+
+**2. Botão TRUCO! (centro, eixo horizontal médio)**
+- Label: `TRUCO +3` no estado inicial
 - A cada toque, cicla: `+3 → +6 → +9 → +12 → +1`
-- Quando em `+1`, exibe label neutro (ex: apenas `+1` ou sem destaque)
 - Após registrar uma queda, reset automático para `+1`
 - Haptic: `ImpactFeedbackStyle.Heavy` ao tocar
 
-**2. Botão Pato / Zoeira (centro meio)**
+**3. Botão Pato / Zoeira (ao lado do TRUCO!)**
 - Ícone de pato 🦆
 - Toque: dispara `quack.mp3` instantaneamente + `ImpactFeedbackStyle.Light`
-- Disponível durante toda a partida (inclusive no fim de jogo)
 
-**3. Histórico Flutuante — HistoryHUD (centro inferior)**
-- Painel translúcido com efeito glassmorphism (blur + opacidade ~70%)
-- Exibe o log de quedas no formato:
+**4. Histórico Flutuante — HistoryHUD (abaixo do TRUCO! e Pato)**
+- Painel translúcido glassmorphism (blur + opacidade ~70%)
+- Exibe o log de quedas:
   ```
-  Time 'Nós' ganhou (+1) → 1 × 0
-  Time 'Eles' trucou e ganhou (+3) → 1 × 3
+  Nós ganhou (+1) → 1 × 0
+  Eles trucou e ganhou (+3) → 1 × 3
   ```
 - Scroll vertical se o histórico crescer
-- Não possui borda rígida — flutua sobre as metades dos times
 
-**4. Botão de Reset / Menu (canto periférico)**
-- Ícone minimalista (ex: ⟳ ou ☰)
-- Toque: abre um Alert de confirmação antes de resetar ou voltar ao menu
+---
+
+### Tela Sorteador de Times (Retrato)
+
+- Campo de texto para adicionar nomes
+- Lista com exclusão por swipe
+- Seletor: **[Duplas]** ou **[Trios]**
+- Botão **[Sortear]**
+- Botão **[Iniciar Jogo com estes Times]**: volta para `index.tsx` passando os nomes via parâmetros
+
+---
+
+### Tela Premium (Retrato)
+
+- Descrição do benefício (sem anúncios para sempre)
+- Preço e botão de compra via RevenueCat
+- Botão "Restaurar compra"
 
 ---
 
@@ -297,22 +315,22 @@ Criar estas issues antes de começar, com as labels indicadas:
 
 | # | Label | Título |
 |---|-------|--------|
-| 1 | `chore` | Setup inicial: Expo + Expo Router + NativeWind + MMKV |
-| 2 | `chore` | Configurar EAS Build para Android |
-| 3 | `chore` | Configurar RevenueCat e AdMob (IDs de teste) |
-| 4 | `feature` | Menu Principal (layout + navegação) |
-| 5 | `feature` | Sorteador de Times |
-| 6 | `feature` | Tela do Marcador — layout base + lock landscape |
-| 7 | `feature` | JogoContext — estado global e persistência MMKV |
-| 8 | `feature` | ScoreHalf — gestos de tap e swipe com pontuação |
-| 9 | `feature` | Botão TRUCO! — ciclo de valores e haptic |
-| 10 | `feature` | HistoryHUD — painel glassmorphism + log de quedas |
-| 11 | `feature` | Botão Pato / Zoeira — som quack + haptic |
-| 12 | `feature` | WinnerOverlay — fim de jogo + tela do pato |
-| 13 | `feature` | Keep Awake na tela do marcador |
+| 1 | `chore` | Setup inicial: Expo + Expo Router + NativeWind + MMKV ✅ |
+| 2 | `chore` | Configurar EAS Build para Android ✅ |
+| 3 | `chore` | Configurar RevenueCat e AdMob (IDs de teste) ✅ |
+| 4 | `feature` | Tela do Marcador — layout base vertical + fundo verde |
+| 5 | `feature` | JogoContext — estado global e persistência MMKV |
+| 6 | `feature` | ScoreHalf — gestos de tap e swipe com pontuação |
+| 7 | `feature` | Botão TRUCO! — ciclo de valores e haptic |
+| 8 | `feature` | HistoryHUD — painel glassmorphism + log de quedas |
+| 9 | `feature` | Botão Pato / Zoeira — som quack + haptic |
+| 10 | `feature` | WinnerOverlay — fim de jogo + tela do pato |
+| 11 | `feature` | Keep Awake na tela do marcador |
+| 12 | `feature` | Menu sanduíche (☰) com Sorteador, Loja, Premium, Nova Partida |
+| 13 | `feature` | Sorteador de Times |
 | 14 | `feature` | Edição de nome de time (toque longo) |
-| 15 | `feature` | Sistema de temas Dark/Light + toggle no menu e no marcador |
-| 16 | `feature` | AdMob — banner no menu + interstitial pós-partida |
+| 15 | `feature` | Sistema de temas Dark/Light + toggle no marcador |
+| 16 | `feature` | AdMob — banner no rodapé do marcador + interstitial pós-partida |
 | 17 | `feature` | Premium — tela de compra + RevenueCat + restore |
 | 18 | `chore` | Assets de produção: ícone, splash screen, metadados Play Store |
 | 19 | `chore` | Build de produção + submissão à Play Store |
