@@ -4,24 +4,44 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-/**
- * Root Layout — envolve todo o app com os providers necessários.
- *
- * GestureHandlerRootView: obrigatório para react-native-gesture-handler funcionar.
- * Stack: navegação file-based do Expo Router v6.
- * global.css: importado aqui para que o NativeWind aplique as classes Tailwind.
- */
-export default function RootLayout() {
+import { ThemeProvider } from '@/context/ThemeContext';
+import { useTheme } from '@/hooks/useTheme';
+
+// ---------------------------------------------------------------------------
+// AppNavigator — acessa o tema do ThemeProvider acima para reagir a mudanças.
+// Separado de RootLayout para poder consumir o Context sem criar um ciclo.
+// ---------------------------------------------------------------------------
+function AppNavigator() {
+  const { theme, activeKey } = useTheme();
+
   return (
-    <GestureHandlerRootView className="flex-1">
-      <StatusBar style="light" backgroundColor="#000000" />
+    <>
+      {/* StatusBar muda de estilo junto com o tema ativo */}
+      <StatusBar
+        style={activeKey === 'dark' ? 'light' : 'dark'}
+        backgroundColor={theme.background}
+      />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#000000' },
+          // contentStyle garante que o fundo entre animações use a cor certa
+          contentStyle: { backgroundColor: theme.background },
           animation: 'fade',
         }}
       />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RootLayout — providers raiz do app
+// ---------------------------------------------------------------------------
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView className="flex-1">
+      <ThemeProvider>
+        <AppNavigator />
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
