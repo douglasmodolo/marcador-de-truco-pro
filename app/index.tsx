@@ -3,6 +3,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useJogo } from '@/hooks/useJogo';
+import type { HistoricoEntry } from '@/context/JogoContext';
 
 // ─── Marcador de Pontos ─────────────────────────────────────────────────────
 // Issues pendentes (próximas branches):
@@ -58,6 +60,7 @@ export default function Index() {
     RENOMEAR_MODAL_FECHADO,
   );
   const [novaPartidaModal, setNovaPartidaModal] = useState(false);
+  const [historicoModal, setHistoricoModal] = useState(false);
 
   // ── Dialog "Continuar partida?" ─────────────────────────────────────────
   // Exibido uma única vez ao montar, se houver partida salva com progresso.
@@ -105,6 +108,15 @@ export default function Index() {
 
   function cancelarRenomear() {
     setRenomearModal(RENOMEAR_MODAL_FECHADO);
+  }
+
+  // ── Helper: formata uma entrada do histórico como string ────────────────
+  // Ex.: "Nós +3 → 4 × 1"  |  "Eles -1 → 3 × 1"
+  function formatarEntrada(entrada: HistoricoEntry): string {
+    const nomeTime =
+      entrada.time === 'time1' ? state.time1.nome : state.time2.nome;
+    const sinal = entrada.pontosSomados > 0 ? '+' : '';
+    return `${nomeTime} ${sinal}${entrada.pontosSomados} → ${entrada.placarApos}`;
   }
 
   // ── Handler do botão de nova partida (header) ───────────────────────────
@@ -295,8 +307,30 @@ export default function Index() {
             <Text style={styles.correrBtnText}>CORRER</Text>
           </TouchableOpacity>
 
-          {/* Histórico — Issue #10 */}
-          <Text style={styles.historyPlaceholder}>Histórico aparece aqui</Text>
+          {/* ── Histórico — últimas 2 entradas; toque abre modal completo ── */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Ver histórico de quedas"
+            onPress={() => setHistoricoModal(true)}
+            style={styles.historyHud}
+          >
+            {state.historico.length === 0 ? (
+              <Text style={styles.historyEmpty}>Histórico aparece aqui</Text>
+            ) : (
+              state.historico.slice(-2).map((entrada, idx) => (
+                <Text
+                  key={entrada.timestamp + idx}
+                  style={[
+                    styles.historyEntry,
+                    entrada.tipo === 'correcao' && styles.historyEntryCorrecao,
+                  ]}
+                >
+                  {formatarEntrada(entrada)}
+                </Text>
+              ))
+            )}
+          </TouchableOpacity>
 
         </View>
 
@@ -394,6 +428,55 @@ export default function Index() {
                 <Text style={styles.modalBtnConfirmText}>Confirmar</Text>
               </TouchableOpacity>
             </View>
+
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL — Histórico completo ────────────────────────────────────── */}
+      <Modal
+        visible={historicoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHistoricoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, styles.historicoCard]}>
+
+            <Text style={styles.modalTitle}>HISTÓRICO</Text>
+
+            <ScrollView
+              style={styles.historicoScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {state.historico.length === 0 ? (
+                <Text style={styles.historicoVazio}>
+                  Nenhuma queda registrada ainda
+                </Text>
+              ) : (
+                state.historico.map((entrada, idx) => (
+                  <View key={entrada.timestamp + idx}>
+                    {idx > 0 && <View style={styles.historicoDivider} />}
+                    <Text
+                      style={[
+                        styles.historicoEntrada,
+                        entrada.tipo === 'correcao' && styles.historicoEntradaCorrecao,
+                      ]}
+                    >
+                      {formatarEntrada(entrada)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setHistoricoModal(false)}
+              style={styles.historicoFecharBtn}
+            >
+              <Text style={styles.historicoFecharBtnText}>FECHAR</Text>
+            </TouchableOpacity>
 
           </View>
         </View>
@@ -536,11 +619,67 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  historyPlaceholder: {
+  // ── HUD mini-histórico ──────────────────────────────────────────────────
+  historyHud: {
     marginTop: 10,
-    color: 'rgba(255,255,255,0.45)',
+    alignItems: 'center',
+    minHeight: 36, // reserva espaço mesmo quando vazio
+    paddingHorizontal: 16,
+  },
+  historyEmpty: {
+    color: 'rgba(255,255,255,0.35)',
     fontSize: 13,
     textAlign: 'center',
+  },
+  historyEntry: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  historyEntryCorrecao: {
+    color: 'rgba(255,120,120,0.8)',
+  },
+
+  // ── Modal histórico completo ─────────────────────────────────────────────
+  historicoCard: {
+    maxHeight: '75%', // limita altura para não cobrir a tela toda
+  },
+  historicoScroll: {
+    marginBottom: 16,
+  },
+  historicoVazio: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  historicoEntrada: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+  historicoEntradaCorrecao: {
+    color: 'rgba(255,120,120,0.8)',
+  },
+  historicoDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  historicoFecharBtn: {
+    alignSelf: 'center',
+    width: '60%',
+    backgroundColor: 'rgba(255,215,0,0.15)',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  historicoFecharBtnText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 18,
+    color: '#FFD700',
   },
 
   // ── Rodapé (Banner Ad) ──────────────────────────────────
