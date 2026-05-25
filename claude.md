@@ -236,24 +236,49 @@ Ao abrir o marcador, verificar se existe uma partida salva e oferecer "Continuar
 Acionado quando qualquer time atinge **12 pontos**:
 
 1. Setar `fimDeJogo: true` no contexto
-2. Renderizar `WinnerOverlay` em tela cheia sobre o marcador
-3. Haptic: `NotificationFeedbackType.Success`
-4. **Animação:** nome do time vencedor em destaque, confetes ou efeito visual celebratório
-5. **Tela do Pato:** o time perdedor é exibido como "Pato da Rodada" — um pato grande aparece;
-   cada toque nele dispara `quack.mp3` + `ImpactFeedbackStyle.Light`
-6. Botão **[Nova Partida]**: reseta o estado e fecha o overlay (mantém nomes dos times)
-7. Botão **[Voltar ao Menu]**: navega para `index.tsx`
+2. A tela do marcador se divide em duas animações simultâneas:
+   - **Lado vencedor:** animação de confete (usar `react-native-confetti-cannon` ou similar) + nome do time em destaque
+   - **Lado perdedor:** imagem/gif de pato gigante ocupa a metade — cada toque dispara `quack.mp3` + `ImpactFeedbackStyle.Light`
+3. Haptic: `NotificationFeedbackType.Success` (3 pulsos)
+4. Botão **[Nova Partida]**: reseta o estado, mantém nomes dos times
+5. Botão **[Compartilhar resultado]**: gera imagem do placar final e abre share sheet do sistema (`expo-sharing` + `react-native-view-shot` para capturar a tela como imagem)
 
-**Usuário Free:** ao fechar o `WinnerOverlay`, exibir anúncio interstitial AdMob antes
-de voltar ao estado normal.
+**Usuário Free:** ao fechar o overlay de fim de jogo, exibir anúncio interstitial AdMob.
+
+---
+
+## 8.1 Aviso Visual — Mão de 11
+
+Quando qualquer time atinge **11 pontos**:
+- A cor do número do placar daquele time muda de branco para **dourado `#FFD700`**
+- Nenhum bloqueio de funcionalidade — apenas alerta visual
+- Quando o jogo terminar (12 pontos), a animação de fim de jogo sobrepõe normalmente
+
+---
+
+## 8.2 Histórico Expansível
+
+- Por padrão, o histórico exibe as **últimas 2 entradas** na zona do HUD
+- Um toque no histórico expande para um modal/drawer mostrando todas as entradas da partida
+- Cada entrada no formato: `Nós ganhou (+3) → 4 × 1`
+- Botão de fechar no modal
+
+---
+
+## 8.3 Nomes Persistidos
+
+- Ao renomear um time, salvar no MMKV com chave `lastTeamNames`
+- Na próxima abertura do app, se existirem nomes salvos, exibir Alert:
+  "Usar nomes da última partida? **Família** vs **Amigos**" com opções [Sim] [Não]
+- Se não houver nomes salvos, usar "Nós" e "Eles" como padrão
 
 ---
 
 ## 9. Monetização
 
 ### Anúncios (Google AdMob)
-- **Banner:** exibido na base do Menu Principal — ocultar se premium
-- **Interstitial:** disparado ao fechar o `WinnerOverlay` — pular se premium
+- **Banner:** exibido no rodapé fixo da tela do marcador — ocultar se premium
+- **Interstitial:** disparado ao fechar o overlay de fim de jogo — pular se premium
 - Configurar IDs de teste durante desenvolvimento; substituir pelos IDs reais antes do build de produção
 
 ### Premium — RevenueCat + Google Play Billing
@@ -318,22 +343,25 @@ Criar estas issues antes de começar, com as labels indicadas:
 | 1 | `chore` | Setup inicial: Expo + Expo Router + NativeWind + MMKV ✅ |
 | 2 | `chore` | Configurar EAS Build para Android ✅ |
 | 3 | `chore` | Configurar RevenueCat e AdMob (IDs de teste) ✅ |
-| 4 | `feature` | Tela do Marcador — layout base vertical + fundo verde |
+| 4 | `feature` | Tela do Marcador — layout base vertical + fundo verde ✅ |
 | 5 | `feature` | JogoContext — estado global e persistência MMKV |
-| 6 | `feature` | ScoreHalf — gestos de tap e swipe com pontuação |
+| 6 | `feature` | Botões +1 e -1 com lógica de pontuação real |
 | 7 | `feature` | Botão TRUCO! — ciclo de valores e haptic |
-| 8 | `feature` | HistoryHUD — painel glassmorphism + log de quedas |
-| 9 | `feature` | Botão Pato / Zoeira — som quack + haptic |
-| 10 | `feature` | WinnerOverlay — fim de jogo + tela do pato |
-| 11 | `feature` | Keep Awake na tela do marcador |
-| 12 | `feature` | Menu sanduíche (☰) com Sorteador, Loja, Premium, Nova Partida |
-| 13 | `feature` | Sorteador de Times |
-| 14 | `feature` | Edição de nome de time (toque longo) |
-| 15 | `feature` | Sistema de temas Dark/Light + toggle no marcador |
-| 16 | `feature` | AdMob — banner no rodapé do marcador + interstitial pós-partida |
-| 17 | `feature` | Premium — tela de compra + RevenueCat + restore |
-| 18 | `chore` | Assets de produção: ícone, splash screen, metadados Play Store |
-| 19 | `chore` | Build de produção + submissão à Play Store |
+| 8 | `feature` | Histórico expansível — últimas 2 entradas + modal completo |
+| 9 | `feature` | Aviso visual mão de 11 (placar dourado) |
+| 10 | `feature` | Nomes persistidos no MMKV + sugestão na próxima partida |
+| 11 | `feature` | Placar animado (flip/bounce ao mudar número) |
+| 12 | `feature` | Botão Pato / Zoeira — som quack + haptic |
+| 13 | `feature` | Keep Awake na tela do marcador |
+| 14 | `feature` | Fim de jogo — confete no vencedor + pato no perdedor |
+| 15 | `feature` | Compartilhar resultado como imagem |
+| 16 | `feature` | Menu sanduíche (☰) com Sorteador, Loja, Premium, Nova Partida |
+| 17 | `feature` | Sorteador de Times |
+| 18 | `feature` | Edição de nome de time (toque longo) |
+| 19 | `feature` | AdMob — banner no rodapé + interstitial pós-partida |
+| 20 | `feature` | Premium — tela de compra + RevenueCat + restore |
+| 21 | `chore` | Assets de produção: ícone, splash screen, metadados Play Store |
+| 22 | `chore` | Build de produção + submissão à Play Store |
 
 ### Labels recomendadas no GitHub
 
