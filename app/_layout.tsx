@@ -39,11 +39,14 @@ export default function RootLayout() {
       <StatusBar style="light" />
       {/* JogoProvider disponibiliza o estado da partida para todas as telas */}
       <JogoProvider>
+        {/* screenOptions aplica fundo verde + fade com duração explícita.
+            Vitória não é mais uma rota — é um Modal dentro de index.tsx. */}
         <Stack
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: '#1B4332' },
             animation: 'fade',
+            animationDuration: 350,
           }}
         />
       </JogoProvider>
