@@ -31,8 +31,8 @@ import type { HistoricoEntry } from '@/context/JogoContext';
 
 // ─── Marcador de Pontos ─────────────────────────────────────────────────────
 // Issues pendentes (próximas branches):
-//   #12 WinnerOverlay — fim de jogo
-//   #13 Keep Awake na tela do marcador
+//   #19 AdMob — banner real no rodapé + interstitial pós-partida
+//   #20 Premium — ocultar banner / compra RevenueCat
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Tipo do estado do modal de renomear ─────────────────────────────────────
@@ -64,6 +64,7 @@ export default function Index() {
     voltarTruco,
     renomearTime,
     novaPartida,
+    resetarNomes,
     continuarPartida,
   } = useJogo();
 
@@ -73,6 +74,9 @@ export default function Index() {
   );
   const [novaPartidaModal, setNovaPartidaModal] = useState(false);
   const [historicoModal, setHistoricoModal] = useState(false);
+  // Overlay de vitória: modal de confirmação de nomes + info capturada ao fim
+  const [vitoriaNomesModal, setVitoriaNomesModal] = useState(false);
+  const [vitoriaInfo, setVitoriaInfo] = useState<{ nome: string; placar: string } | null>(null);
 
   // ── Animação — CORRER fade in/out ────────────────────────────────────────
   // Inicia em 0 (valorTruco === 1 é o estado padrão).
@@ -86,6 +90,20 @@ export default function Index() {
     correrOpacity.value = withTiming(state.valorTruco === 1 ? 0 : 1, { duration: 200 });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.valorTruco]);
+
+  // ── Overlay de vitória: captura info + haptic quando o jogo termina ─────
+  // Não há mais navegação — o overlay é um Modal nativo por cima do marcador.
+  // vitoriaInfo é salvo aqui para que o conteúdo do modal não exiba valores
+  // zerados durante o fade-out quando novaPartida() resetar o state.
+  useEffect(() => {
+    if (!state.fimDeJogo || !state.vencedor) return;
+    setVitoriaInfo({
+      nome:   state[state.vencedor].nome,
+      placar: `${state.time1.pontos} × ${state.time2.pontos}`,
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.fimDeJogo]);
 
   // ── Dialog "Continuar partida?" ─────────────────────────────────────────
   // Exibido uma única vez ao montar, se houver partida salva com progresso.
@@ -144,12 +162,16 @@ export default function Index() {
   }
 
   return (
-    <LinearGradient
-      colors={['#2D6A4F', '#1B4332']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={styles.gradient}
-    >
+    <View style={styles.root}>
+      {/* backgroundColor sólido como fallback: se o LinearGradient demorar
+          um frame para renderizar, o verde escuro já está visível — nunca
+          há frame branco/transparente durante a transição. */}
+      <LinearGradient
+        colors={['#2D6A4F', '#1B4332']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.gradient}
+      >
       <StatusBar style="light" />
 
       <SafeAreaView
@@ -509,12 +531,130 @@ export default function Index() {
         </View>
       </Modal>
 
+      {/* ── OVERLAY — Fim de jogo ──────────────────────────────────────────── */}
+      {/* Modal nativo: animationType="fade" + statusBarTranslucent cobre 100%
+          da tela incluindo status bar, sem troca de tela, sem flash. */}
+      <Modal
+        visible={state.fimDeJogo}
+        animationType="fade"
+        statusBarTranslucent
+        transparent={false}
+        onRequestClose={() => {}} // impede fechar com botão voltar durante vitória
+      >
+        {/* View sólida como fallback — mesmo padrão do root da tela */}
+        <View style={styles.vitoriaRoot}>
+          <LinearGradient
+            colors={['#2D6A4F', '#1B4332']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.vitoriaGradient}
+          >
+            <StatusBar style="light" />
+            <SafeAreaView style={styles.vitoriaSafe} edges={['top', 'bottom']}>
+
+              {/* ── Conteúdo central com animações escalonadas ─────────────── */}
+              <View style={styles.vitoriaContent}>
+                <Animated.View entering={FadeIn.duration(600)}>
+                  <Text style={styles.vitoriaTrophy}>🏆</Text>
+                </Animated.View>
+                <Animated.View entering={FadeInDown.duration(500).delay(200)}>
+                  <Text style={styles.vitoriaLabel}>VENCEDOR</Text>
+                </Animated.View>
+                <Animated.View entering={FadeInDown.duration(600).delay(400)}>
+                  <Text style={styles.vitoriaNome} numberOfLines={2} adjustsFontSizeToFit>
+                    {vitoriaInfo?.nome ?? ''}
+                  </Text>
+                </Animated.View>
+                <Animated.View entering={FadeInDown.duration(500).delay(600)}>
+                  <Text style={styles.vitoriaPlacar}>{vitoriaInfo?.placar ?? ''}</Text>
+                </Animated.View>
+              </View>
+
+              {/* ── Botões de ação ──────────────────────────────────────────── */}
+              <Animated.View
+                entering={FadeInDown.duration(500).delay(800)}
+                style={styles.vitoriaActions}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Nova partida"
+                  onPress={() => setVitoriaNomesModal(true)}
+                  style={styles.vitoriaBtnNovaPartida}
+                >
+                  <Text style={styles.vitoriaBtnNovaPartidaText}>NOVA PARTIDA</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manter times e jogar nova partida"
+                  onPress={novaPartida}
+                  style={styles.vitoriaBtnManterTimes}
+                >
+                  <Text style={styles.vitoriaBtnManterTimesText}>MANTER TIMES E JOGAR</Text>
+                </TouchableOpacity>
+              </Animated.View>
+
+            </SafeAreaView>
+          </LinearGradient>
+        </View>
+
+        {/* ── Modal aninhado — confirmar nomes para nova partida ─────────── */}
+        <Modal
+          visible={vitoriaNomesModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setVitoriaNomesModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>NOVA PARTIDA</Text>
+              <Text style={styles.modalBody}>Manter os nomes dos times?</Text>
+              <Text style={styles.vitoriaModalTeams}>
+                {state.time1.nome}  vs  {state.time2.nome}
+              </Text>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => { setVitoriaNomesModal(false); resetarNomes(); novaPartida(); }}
+                  style={[styles.modalBtn, styles.modalBtnCancel]}
+                >
+                  <Text style={styles.modalBtnCancelText}>NÃO</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => { setVitoriaNomesModal(false); novaPartida(); }}
+                  style={[styles.modalBtn, styles.modalBtnConfirm]}
+                >
+                  <Text style={styles.modalBtnConfirmText}>SIM</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setVitoriaNomesModal(false)}
+                style={styles.vitoriaModalBtnCancelar}
+              >
+                <Text style={styles.vitoriaModalBtnCancelarText}>CANCELAR</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+      </Modal>
+
     </LinearGradient>
+    </View>
   );
 }
 
 // ─── Estilos ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+
+  // Wrapper sólido: garante cor de fundo enquanto o gradiente não renderizou
+  root: {
+    flex: 1,
+    backgroundColor: '#1B4332',
+  },
 
   gradient: {
     flex: 1,
@@ -794,5 +934,95 @@ const styles = StyleSheet.create({
     fontFamily: 'BebasNeue',
     fontSize: 18,
     color: '#FFD700',
+  },
+
+  // ── Overlay de vitória ────────────────────────────────────────────────────
+  vitoriaRoot:     { flex: 1, backgroundColor: '#1B4332' },
+  vitoriaGradient: { flex: 1 },
+  vitoriaSafe:     { flex: 1 },
+  vitoriaContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  vitoriaTrophy: {
+    fontSize: 80,
+    lineHeight: 96,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  vitoriaLabel: {
+    fontFamily: 'BebasNeue',
+    fontSize: 28,
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 4,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  vitoriaNome: {
+    fontFamily: 'BebasNeue',
+    fontSize: 72,
+    color: '#FFD700',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  vitoriaPlacar: {
+    fontFamily: 'BebasNeue',
+    fontSize: 32,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+  },
+  vitoriaActions: {
+    alignItems: 'center',
+    paddingBottom: 40,
+    gap: 12,
+  },
+  vitoriaBtnNovaPartida: {
+    width: '80%',
+    backgroundColor: '#FFD700',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  vitoriaBtnNovaPartidaText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 24,
+    color: '#1B4332',
+    letterSpacing: 1,
+  },
+  vitoriaBtnManterTimes: {
+    width: '80%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  vitoriaBtnManterTimesText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 24,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  vitoriaModalTeams: {
+    fontFamily: 'BebasNeue',
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 1,
+    marginBottom: 20,
+  },
+  vitoriaModalBtnCancelar: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  vitoriaModalBtnCancelarText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.4)',
   },
 });

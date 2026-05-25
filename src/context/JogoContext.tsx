@@ -62,6 +62,8 @@ export interface JogoContextValue {
   renomearTime: (time: 'time1' | 'time2', nome: string) => void;
   /** Reseta pontos, histórico, truco e fimDeJogo — mantém nomes dos times. */
   novaPartida: () => void;
+  /** Reseta time1.nome → "Nós" e time2.nome → "Eles", limpa MMKV de nomes. */
+  resetarNomes: () => void;
   /** Carrega a partida salva do MMKV para o estado ativo. */
   continuarPartida: () => void;
 }
@@ -84,6 +86,7 @@ type Action =
   | { type: 'VOLTAR_TRUCO' }
   | { type: 'RENOMEAR_TIME';   time: 'time1' | 'time2'; nome: string }
   | { type: 'NOVA_PARTIDA' }
+  | { type: 'RESETAR_NOMES' }
   | { type: 'CARREGAR_ESTADO'; estado: JogoState };
 
 function reducer(state: JogoState, action: Action): JogoState {
@@ -189,6 +192,13 @@ function reducer(state: JogoState, action: Action): JogoState {
         vencedor: null,
       };
 
+    case 'RESETAR_NOMES':
+      return {
+        ...state,
+        time1: { ...state.time1, nome: 'Nós' },
+        time2: { ...state.time2, nome: 'Eles' },
+      };
+
     case 'CARREGAR_ESTADO':
       return action.estado;
 
@@ -286,6 +296,12 @@ export function JogoProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'NOVA_PARTIDA' });
   }, []);
 
+  const resetarNomes = useCallback(() => {
+    dispatch({ type: 'RESETAR_NOMES' });
+    // Apaga os nomes persistidos para que a próxima sessão use os padrões
+    try { storage.delete(STORAGE_KEY_NAMES); } catch {}
+  }, []);
+
   const continuarPartida = useCallback(() => {
     try {
       const saved = storage.getString(STORAGE_KEY_STATE);
@@ -317,6 +333,7 @@ export function JogoProvider({ children }: { children: React.ReactNode }) {
       voltarTruco,
       renomearTime,
       novaPartida,
+      resetarNomes,
       continuarPartida,
     }),
     [
@@ -329,6 +346,7 @@ export function JogoProvider({ children }: { children: React.ReactNode }) {
       voltarTruco,
       renomearTime,
       novaPartida,
+      resetarNomes,
       continuarPartida,
     ],
   );
