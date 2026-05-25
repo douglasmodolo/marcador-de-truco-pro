@@ -8,11 +8,15 @@ import { useFonts } from 'expo-font';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import * as SplashScreen from 'expo-splash-screen';
 
+import { JogoProvider } from '@/context/JogoContext';
+
 // Mantém o splash screen visível até as fontes carregarem.
 SplashScreen.preventAutoHideAsync();
 
 // ---------------------------------------------------------------------------
 // RootLayout — providers raiz + carregamento de fontes
+// Ordem dos providers (interno → externo):
+//   GestureHandlerRootView > JogoProvider > Stack
 // ---------------------------------------------------------------------------
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -33,13 +37,16 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView className="flex-1">
       <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#1B4332' },
-          animation: 'fade',
-        }}
-      />
+      {/* JogoProvider disponibiliza o estado da partida para todas as telas */}
+      <JogoProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#1B4332' },
+            animation: 'fade',
+          }}
+        />
+      </JogoProvider>
     </GestureHandlerRootView>
   );
 }
