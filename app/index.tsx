@@ -24,6 +24,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useKeepAwake } from 'expo-keep-awake';
+
 import { useJogo } from '@/hooks/useJogo';
 import type { HistoricoEntry } from '@/context/JogoContext';
 
@@ -47,6 +49,9 @@ const RENOMEAR_MODAL_FECHADO: RenomearModalState = {
 };
 
 export default function Index() {
+  // Mantém a tela acesa enquanto o marcador estiver aberto.
+  useKeepAwake();
+
   const insets = useSafeAreaInsets();
 
   const {
