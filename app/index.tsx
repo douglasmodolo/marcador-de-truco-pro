@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -29,6 +30,8 @@ import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 
 import { useJogo } from '@/hooks/useJogo';
+import { useConfig } from '@/hooks/useConfig';
+import type { FontSizeKey } from '@/hooks/useConfig';
 import type { HistoricoEntry } from '@/context/JogoContext';
 
 // ─── Marcador de Pontos ─────────────────────────────────────────────────────
@@ -71,13 +74,28 @@ export default function Index() {
     continuarPartida,
   } = useJogo();
 
+  // ── Configurações do usuário (persistidas no MMKV) ──────────────────────
+  const {
+    hapticsEnabled,
+    setHapticsEnabled,
+    placarFontSizeKey,
+    setPlacarFontSizeKey,
+    placarFontSize,
+  } = useConfig();
+
+  // Helper: dispara haptic apenas se o usuário não desligou a vibração.
+  function haptic(fn: () => void) {
+    if (hapticsEnabled) fn();
+  }
+
   // ── Estado local: modais ────────────────────────────────────────────────
   const [renomearModal, setRenomearModal] = useState<RenomearModalState>(
     RENOMEAR_MODAL_FECHADO,
   );
   const [novaPartidaModal, setNovaPartidaModal] = useState(false);
-  const [historicoModal, setHistoricoModal] = useState(false);
-  const [menuVisivel, setMenuVisivel]       = useState(false);
+  const [historicoModal, setHistoricoModal]     = useState(false);
+  const [menuVisivel, setMenuVisivel]           = useState(false);
+  const [configModal, setConfigModal]           = useState(false);
   // Overlay de vitória: modal de confirmação de nomes + info capturada ao fim
   const [vitoriaNomesModal, setVitoriaNomesModal] = useState(false);
   const [vitoriaInfo, setVitoriaInfo] = useState<{ nome: string; placar: string } | null>(null);
@@ -105,7 +123,7 @@ export default function Index() {
       nome:   state[state.vencedor].nome,
       placar: `${state.time1.pontos} × ${state.time2.pontos}`,
     });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    haptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.fimDeJogo]);
 
@@ -133,7 +151,7 @@ export default function Index() {
 
   // ── Handlers do modal de renomear ───────────────────────────────────────
   function abrirRenomear(time: 'time1' | 'time2') {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
     setRenomearModal({
       visivel: true,
       time,
@@ -194,7 +212,7 @@ export default function Index() {
     {
       emoji: '⚙️',
       label: 'Configurações',
-      onPress: () => setMenuVisivel(false), // placeholder — Issue futura
+      onPress: () => { setMenuVisivel(false); setConfigModal(true); },
     },
     {
       emoji: '⭐',
@@ -229,7 +247,7 @@ export default function Index() {
             accessibilityLabel="Abrir menu"
             onPress={() => {
               setMenuVisivel(true);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
             }}
             style={({ pressed }) => [styles.headerBtn, { opacity: pressed ? 0.6 : 1 }]}
           >
@@ -269,7 +287,7 @@ export default function Index() {
             >
               <Text style={[
                 styles.scoreText,
-                { color: maoDeOnze.time1 ? '#FFD700' : '#FFFFFF' },
+                { color: maoDeOnze.time1 ? '#FFD700' : '#FFFFFF', fontSize: placarFontSize, lineHeight: placarFontSize + 10 },
               ]}>
                 {state.time1.pontos}
               </Text>
@@ -281,7 +299,7 @@ export default function Index() {
               accessibilityLabel={`Adicionar ${state.valorTruco} ponto(s) ao time 1`}
               onPress={() => {
                 adicionarPonto('time1');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
               }}
               style={styles.scorePlusBtn}
             >
@@ -294,7 +312,7 @@ export default function Index() {
               accessibilityLabel="Remover ponto do time 1"
               onPress={() => {
                 removerPonto('time1');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
               }}
               style={styles.scoreMinusBtn}
             >
@@ -326,7 +344,7 @@ export default function Index() {
             >
               <Text style={[
                 styles.scoreText,
-                { color: maoDeOnze.time2 ? '#FFD700' : '#FFFFFF' },
+                { color: maoDeOnze.time2 ? '#FFD700' : '#FFFFFF', fontSize: placarFontSize, lineHeight: placarFontSize + 10 },
               ]}>
                 {state.time2.pontos}
               </Text>
@@ -338,7 +356,7 @@ export default function Index() {
               accessibilityLabel={`Adicionar ${state.valorTruco} ponto(s) ao time 2`}
               onPress={() => {
                 adicionarPonto('time2');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
               }}
               style={styles.scorePlusBtn}
             >
@@ -351,7 +369,7 @@ export default function Index() {
               accessibilityLabel="Remover ponto do time 2"
               onPress={() => {
                 removerPonto('time2');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
               }}
               style={styles.scoreMinusBtn}
             >
@@ -372,7 +390,7 @@ export default function Index() {
             accessibilityLabel={`Botão truco — valor atual: ${state.valorTruco}`}
             onPress={() => {
               avancarTruco();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
             }}
             style={styles.trucoBtn}
           >
@@ -391,7 +409,7 @@ export default function Index() {
               disabled={state.valorTruco === 1}
               onPress={() => {
                 voltarTruco();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
               }}
               style={styles.correrBtn}
             >
@@ -617,6 +635,74 @@ export default function Index() {
             ))}
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* ── MODAL — Configurações ────────────────────────────────────────────── */}
+      <Modal
+        visible={configModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfigModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+
+            {/* Cabeçalho */}
+            <View style={styles.configHeader}>
+              <Text style={styles.configTitulo}>CONFIGURAÇÕES</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar configurações"
+                onPress={() => setConfigModal(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.configDivider} />
+
+            {/* Opção 1 — Vibração */}
+            <View style={styles.configRow}>
+              <Text style={styles.configLabel}>VIBRAÇÃO</Text>
+              <Switch
+                value={hapticsEnabled}
+                onValueChange={setHapticsEnabled}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FFD700' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.configDivider} />
+
+            {/* Opção 2 — Tamanho do placar */}
+            <View style={styles.configColuna}>
+              <Text style={styles.configLabel}>TAMANHO DO PLACAR</Text>
+              <View style={styles.configFontRow}>
+                {(['P', 'M', 'G'] as FontSizeKey[]).map((key) => (
+                  <TouchableOpacity
+                    key={key}
+                    activeOpacity={0.8}
+                    onPress={() => setPlacarFontSizeKey(key)}
+                    style={[
+                      styles.configFontBtn,
+                      placarFontSizeKey === key && styles.configFontBtnActive,
+                    ]}
+                  >
+                    <Text style={[
+                      styles.configFontBtnText,
+                      placarFontSizeKey === key && styles.configFontBtnTextActive,
+                    ]}>
+                      {key}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+          </View>
+        </View>
       </Modal>
 
       {/* ── OVERLAY — Fim de jogo ──────────────────────────────────────────── */}
@@ -1157,5 +1243,64 @@ const styles = StyleSheet.create({
     fontFamily: 'BebasNeue',
     fontSize: 16,
     color: 'rgba(255,255,255,0.4)',
+  },
+
+  // ── Modal de configurações ───────────────────────────────────────────────
+  configHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  configTitulo: {
+    fontFamily: 'BebasNeue',
+    fontSize: 26,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  configDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginVertical: 16,
+  },
+  // Linha: label à esquerda + controle à direita
+  configRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  // Coluna: label acima + controle abaixo
+  configColuna: {
+    gap: 12,
+  },
+  configLabel: {
+    fontFamily: 'BebasNeue',
+    fontSize: 20,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  // Botões P / M / G
+  configFontRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  configFontBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  configFontBtnActive: {
+    backgroundColor: '#FFD700',
+  },
+  configFontBtnText: {
+    fontFamily: 'BebasNeue',
+    fontSize: 22,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  configFontBtnTextActive: {
+    color: '#1B4332',
   },
 });
